@@ -18,6 +18,14 @@
     --border-color: #E5E7EB;
   }
 
+  :root[data-theme="dark"] {
+    --bg-color: #0F172A;
+    --card-color: #1E293B;
+    --text-color: #F1F5F9;
+    --text-muted: #94A3B8;
+    --border-color: #334155;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -28,6 +36,7 @@
     background: var(--bg-color);
     color: var(--text-color);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+    transition: background 0.2s ease, color 0.2s ease;
   }
 
   .app-container {
@@ -44,10 +53,33 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
 
+  .app-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
   .app-title {
-    margin: 0 0 16px 0;
+    margin: 0;
     font-size: 24px;
     font-weight: 700;
+  }
+
+  #theme-toggle-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    line-height: 1;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+  }
+
+  #theme-toggle-btn:hover {
+    opacity: 0.85;
   }
 
   #progress-section {
@@ -294,7 +326,10 @@
 
     <!-- 1. 헤더 영역 -->
     <header class="app-header">
-      <h1 class="app-title">📝 Todo List</h1>
+      <div class="app-title-row">
+        <h1 class="app-title">📝 Todo List</h1>
+        <button id="theme-toggle-btn" type="button" aria-label="다크 모드 전환">🌙</button>
+      </div>
       <div id="progress-section">
         <div class="progress-bar">
           <div class="progress-fill"></div>
@@ -341,6 +376,31 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_YaVFnX6H6Lw-o5OcfYoVtw_ZENbz16T';
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const TODO_TABLE = 'todo_tbl';
+
+  // ----- 다크 모드 -----
+  const THEME_STORAGE_KEY = 'todo_theme_v1';
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    themeToggleBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+
+  function getInitialTheme() {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'dark' || saved === 'light') {
+      return saved;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  applyTheme(getInitialTheme());
+
+  themeToggleBtn.addEventListener('click', function () {
+    const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  });
 
   // 탭 클릭 시 active 클래스 토글 + 카테고리 필터 적용 (FR-05)
   const tabButtons = document.querySelectorAll('.tab-btn');
