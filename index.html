@@ -459,14 +459,14 @@
       <p id="auth-message" class="auth-message"></p>
 
       <form id="login-form" class="auth-form">
-        <input type="text" id="login-username" placeholder="아이디" autocomplete="username">
+        <input type="email" id="login-email" placeholder="이메일" autocomplete="email">
         <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password">
         <button type="submit">로그인</button>
       </form>
 
       <form id="signup-form" class="auth-form" hidden>
-        <input type="text" id="signup-username" placeholder="아이디" autocomplete="username">
-        <input type="password" id="signup-password" placeholder="비밀번호" autocomplete="new-password">
+        <input type="email" id="signup-email" placeholder="이메일" autocomplete="email">
+        <input type="password" id="signup-password" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
         <input type="password" id="signup-password-confirm" placeholder="비밀번호 확인" autocomplete="new-password">
         <button type="submit">회원가입</button>
       </form>
@@ -558,10 +558,7 @@
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
   });
 
-  // ----- 로그인 / 회원가입 (localStorage 기반) -----
-  const USERS_STORAGE_KEY = 'todo_users_v1';
-  const CURRENT_USER_STORAGE_KEY = 'todo_current_user_v1';
-
+  // ----- 로그인 / 회원가입 (Supabase Auth) -----
   const authScreenEl = document.getElementById('auth-screen');
   const todoScreenEl = document.getElementById('todo-screen');
   const tabLoginBtn = document.getElementById('tab-login-btn');
@@ -569,42 +566,13 @@
   const authMessageEl = document.getElementById('auth-message');
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
-  const loginUsernameInput = document.getElementById('login-username');
+  const loginEmailInput = document.getElementById('login-email');
   const loginPasswordInput = document.getElementById('login-password');
-  const signupUsernameInput = document.getElementById('signup-username');
+  const signupEmailInput = document.getElementById('signup-email');
   const signupPasswordInput = document.getElementById('signup-password');
   const signupPasswordConfirmInput = document.getElementById('signup-password-confirm');
   const currentUserLabelEl = document.getElementById('current-user-label');
   const logoutBtn = document.getElementById('logout-btn');
-
-  function loadUsers() {
-    const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveUsers(users) {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  }
-
-  function getCurrentUser() {
-    return localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-  }
-
-  function setCurrentUser(username) {
-    localStorage.setItem(CURRENT_USER_STORAGE_KEY, username);
-  }
-
-  function clearCurrentUser() {
-    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-  }
 
   function setAuthMessage(text, type) {
     authMessageEl.textContent = text;
@@ -628,10 +596,12 @@
     showAuthForm('signup');
   });
 
-  async function enterTodoScreen(username) {
+  let hasEnteredTodoScreen = false;
+
+  async function enterTodoScreen(user) {
     authScreenEl.hidden = true;
     todoScreenEl.hidden = false;
-    currentUserLabelEl.textContent = username + '님';
+    currentUserLabelEl.textContent = (user.email || '') + '님';
 
     todos = await loadTodos();
     renderTodos();
@@ -642,15 +612,30 @@
     authScreenEl.hidden = false;
   }
 
-  signupForm.addEventListener('submit', function (e) {
+  // 세션 상태 변화(초기 로드 포함, 로그인, 로그아웃, 토큰 갱신)를 한 곳에서 처리
+  supabaseClient.auth.onAuthStateChange(function (event, session) {
+    if (session && session.user) {
+      if (!hasEnteredTodoScreen) {
+        hasEnteredTodoScreen = true;
+        enterTodoScreen(session.user);
+      } else {
+        currentUserLabelEl.textContent = (session.user.email || '') + '님';
+      }
+    } else {
+      hasEnteredTodoScreen = false;
+      showAuthScreen();
+    }
+  });
+
+  signupForm.addEventListener('submit', async function (e) {
     e.preventDefault();
 
-    const username = signupUsernameInput.value.trim();
+    const email = signupEmailInput.value.trim();
     const password = signupPasswordInput.value;
     const passwordConfirm = signupPasswordConfirmInput.value;
 
-    if (!username || !password) {
-      setAuthMessage('아이디와 비밀번호를 입력해주세요.', 'error');
+    if (!email || !password) {
+      setAuthMessage('이메일과 비밀번호를 입력해주세요.', 'error');
       return;
     }
 
@@ -659,54 +644,52 @@
       return;
     }
 
-    const users = loadUsers();
-    if (users.some(function (u) { return u.username === username; })) {
-      setAuthMessage('이미 존재하는 아이디입니다.', 'error');
+    const { data, error } = await supabaseClient.auth.signUp({ email: email, password: password });
+
+    if (error) {
+      setAuthMessage(error.message, 'error');
       return;
     }
 
-    users.push({ username: username, password: password });
-    saveUsers(users);
-
     signupForm.reset();
-    showAuthForm('login');
-    loginUsernameInput.value = username;
-    setAuthMessage('회원가입이 완료되었습니다. 로그인해주세요.', 'success');
-    loginPasswordInput.focus();
+
+    if (data.session) {
+      // 이메일 확인이 꺼져 있는 프로젝트: 가입과 동시에 로그인되어
+      // onAuthStateChange가 자동으로 todo 화면으로 전환해준다.
+      setAuthMessage('회원가입이 완료되었습니다.', 'success');
+    } else {
+      showAuthForm('login');
+      loginEmailInput.value = email;
+      setAuthMessage('회원가입이 완료되었습니다. 이메일 인증 후 로그인해주세요.', 'success');
+    }
   });
 
   loginForm.addEventListener('submit', async function (e) {
     e.preventDefault();
 
-    const username = loginUsernameInput.value.trim();
+    const email = loginEmailInput.value.trim();
     const password = loginPasswordInput.value;
 
-    if (!username || !password) {
-      setAuthMessage('아이디와 비밀번호를 입력해주세요.', 'error');
+    if (!email || !password) {
+      setAuthMessage('이메일과 비밀번호를 입력해주세요.', 'error');
       return;
     }
 
-    const users = loadUsers();
-    const matchedUser = users.find(function (u) {
-      return u.username === username && u.password === password;
-    });
+    const { error } = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
 
-    if (!matchedUser) {
-      setAuthMessage('아이디 또는 비밀번호가 올바르지 않습니다.', 'error');
+    if (error) {
+      setAuthMessage(error.message, 'error');
       return;
     }
 
-    setCurrentUser(username);
     loginForm.reset();
     setAuthMessage('');
-    await enterTodoScreen(username);
   });
 
-  logoutBtn.addEventListener('click', function () {
-    clearCurrentUser();
+  logoutBtn.addEventListener('click', async function () {
+    await supabaseClient.auth.signOut();
     loginForm.reset();
     showAuthForm('login');
-    showAuthScreen();
   });
 
   // 탭 클릭 시 active 클래스 토글 + 카테고리 필터 적용 (FR-05)
@@ -1089,21 +1072,7 @@
     }
   });
 
-  // ----- 페이지 로드 시 초기화 -----
-  (async function init() {
-    const current = getCurrentUser();
-    const users = loadUsers();
-    const isValidSession = current && users.some(function (u) {
-      return u.username === current;
-    });
-
-    if (isValidSession) {
-      await enterTodoScreen(current);
-    } else {
-      clearCurrentUser();
-      showAuthScreen();
-    }
-  })();
+  // 페이지 로드 시 화면 전환은 위 onAuthStateChange의 최초 호출(INITIAL_SESSION)이 처리한다.
 </script>
 
 </body>
