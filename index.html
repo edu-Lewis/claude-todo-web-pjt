@@ -44,6 +44,130 @@
     margin: 0 auto;
   }
 
+  /* 로그인 / 회원가입 화면 */
+  .auth-container {
+    max-width: 400px;
+    margin: 60px auto 0;
+  }
+
+  .auth-card {
+    background: var(--card-color);
+    border-radius: 16px;
+    padding: 32px 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .auth-title {
+    margin: 0 0 24px 0;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .auth-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .auth-tab {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .auth-tab.active {
+    color: #fff;
+    background: var(--color-personal);
+    border-color: var(--color-personal);
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .auth-form input {
+    padding: 12px 14px;
+    font-size: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    outline: none;
+    background: var(--bg-color);
+    color: var(--text-color);
+  }
+
+  .auth-form input:focus {
+    border-color: var(--color-personal);
+  }
+
+  .auth-form button[type="submit"] {
+    margin-top: 6px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-personal);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .auth-form button[type="submit"]:hover {
+    opacity: 0.9;
+  }
+
+  .auth-message {
+    min-height: 18px;
+    margin: 0 0 12px 0;
+    font-size: 13px;
+  }
+
+  .auth-message.error {
+    color: #EF4444;
+  }
+
+  .auth-message.success {
+    color: #10B981;
+  }
+
+  /* 헤더 사용자 정보 / 로그아웃 */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .current-user-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  #logout-btn {
+    padding: 0 14px;
+    height: 40px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  #logout-btn:hover {
+    opacity: 0.85;
+  }
+
   /* 헤더 영역 */
   .app-header {
     background: var(--card-color);
@@ -322,13 +446,45 @@
 </head>
 <body>
 
-  <div class="app-container">
+  <!-- 0. 로그인 / 회원가입 화면 -->
+  <div id="auth-screen" class="auth-container">
+    <div class="auth-card">
+      <h1 class="auth-title">📝 Todo List</h1>
+
+      <div class="auth-tabs">
+        <button id="tab-login-btn" type="button" class="auth-tab active">로그인</button>
+        <button id="tab-signup-btn" type="button" class="auth-tab">회원가입</button>
+      </div>
+
+      <p id="auth-message" class="auth-message"></p>
+
+      <form id="login-form" class="auth-form">
+        <input type="text" id="login-username" placeholder="아이디" autocomplete="username">
+        <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password">
+        <button type="submit">로그인</button>
+      </form>
+
+      <form id="signup-form" class="auth-form" hidden>
+        <input type="text" id="signup-username" placeholder="아이디" autocomplete="username">
+        <input type="password" id="signup-password" placeholder="비밀번호" autocomplete="new-password">
+        <input type="password" id="signup-password-confirm" placeholder="비밀번호 확인" autocomplete="new-password">
+        <button type="submit">회원가입</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 1~4. Todo 화면 -->
+  <div id="todo-screen" class="app-container" hidden>
 
     <!-- 1. 헤더 영역 -->
     <header class="app-header">
       <div class="app-title-row">
         <h1 class="app-title">📝 Todo List</h1>
-        <button id="theme-toggle-btn" type="button" aria-label="다크 모드 전환">🌙</button>
+        <div class="header-actions">
+          <span id="current-user-label" class="current-user-label"></span>
+          <button id="logout-btn" type="button">로그아웃</button>
+          <button id="theme-toggle-btn" type="button" aria-label="다크 모드 전환">🌙</button>
+        </div>
       </div>
       <div id="progress-section">
         <div class="progress-bar">
@@ -400,6 +556,157 @@
     const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     applyTheme(nextTheme);
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  });
+
+  // ----- 로그인 / 회원가입 (localStorage 기반) -----
+  const USERS_STORAGE_KEY = 'todo_users_v1';
+  const CURRENT_USER_STORAGE_KEY = 'todo_current_user_v1';
+
+  const authScreenEl = document.getElementById('auth-screen');
+  const todoScreenEl = document.getElementById('todo-screen');
+  const tabLoginBtn = document.getElementById('tab-login-btn');
+  const tabSignupBtn = document.getElementById('tab-signup-btn');
+  const authMessageEl = document.getElementById('auth-message');
+  const loginForm = document.getElementById('login-form');
+  const signupForm = document.getElementById('signup-form');
+  const loginUsernameInput = document.getElementById('login-username');
+  const loginPasswordInput = document.getElementById('login-password');
+  const signupUsernameInput = document.getElementById('signup-username');
+  const signupPasswordInput = document.getElementById('signup-password');
+  const signupPasswordConfirmInput = document.getElementById('signup-password-confirm');
+  const currentUserLabelEl = document.getElementById('current-user-label');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  function loadUsers() {
+    const raw = localStorage.getItem(USERS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  }
+
+  function getCurrentUser() {
+    return localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+  }
+
+  function setCurrentUser(username) {
+    localStorage.setItem(CURRENT_USER_STORAGE_KEY, username);
+  }
+
+  function clearCurrentUser() {
+    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+  }
+
+  function setAuthMessage(text, type) {
+    authMessageEl.textContent = text;
+    authMessageEl.className = 'auth-message' + (type ? ' ' + type : '');
+  }
+
+  function showAuthForm(which) {
+    const isLogin = which === 'login';
+    loginForm.hidden = !isLogin;
+    signupForm.hidden = isLogin;
+    tabLoginBtn.classList.toggle('active', isLogin);
+    tabSignupBtn.classList.toggle('active', !isLogin);
+    setAuthMessage('');
+  }
+
+  tabLoginBtn.addEventListener('click', function () {
+    showAuthForm('login');
+  });
+
+  tabSignupBtn.addEventListener('click', function () {
+    showAuthForm('signup');
+  });
+
+  async function enterTodoScreen(username) {
+    authScreenEl.hidden = true;
+    todoScreenEl.hidden = false;
+    currentUserLabelEl.textContent = username + '님';
+
+    todos = await loadTodos();
+    renderTodos();
+  }
+
+  function showAuthScreen() {
+    todoScreenEl.hidden = true;
+    authScreenEl.hidden = false;
+  }
+
+  signupForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const username = signupUsernameInput.value.trim();
+    const password = signupPasswordInput.value;
+    const passwordConfirm = signupPasswordConfirmInput.value;
+
+    if (!username || !password) {
+      setAuthMessage('아이디와 비밀번호를 입력해주세요.', 'error');
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setAuthMessage('비밀번호가 일치하지 않습니다.', 'error');
+      return;
+    }
+
+    const users = loadUsers();
+    if (users.some(function (u) { return u.username === username; })) {
+      setAuthMessage('이미 존재하는 아이디입니다.', 'error');
+      return;
+    }
+
+    users.push({ username: username, password: password });
+    saveUsers(users);
+
+    signupForm.reset();
+    showAuthForm('login');
+    loginUsernameInput.value = username;
+    setAuthMessage('회원가입이 완료되었습니다. 로그인해주세요.', 'success');
+    loginPasswordInput.focus();
+  });
+
+  loginForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const username = loginUsernameInput.value.trim();
+    const password = loginPasswordInput.value;
+
+    if (!username || !password) {
+      setAuthMessage('아이디와 비밀번호를 입력해주세요.', 'error');
+      return;
+    }
+
+    const users = loadUsers();
+    const matchedUser = users.find(function (u) {
+      return u.username === username && u.password === password;
+    });
+
+    if (!matchedUser) {
+      setAuthMessage('아이디 또는 비밀번호가 올바르지 않습니다.', 'error');
+      return;
+    }
+
+    setCurrentUser(username);
+    loginForm.reset();
+    setAuthMessage('');
+    await enterTodoScreen(username);
+  });
+
+  logoutBtn.addEventListener('click', function () {
+    clearCurrentUser();
+    loginForm.reset();
+    showAuthForm('login');
+    showAuthScreen();
   });
 
   // 탭 클릭 시 active 클래스 토글 + 카테고리 필터 적용 (FR-05)
@@ -784,8 +1091,18 @@
 
   // ----- 페이지 로드 시 초기화 -----
   (async function init() {
-    todos = await loadTodos();
-    renderTodos();
+    const current = getCurrentUser();
+    const users = loadUsers();
+    const isValidSession = current && users.some(function (u) {
+      return u.username === current;
+    });
+
+    if (isValidSession) {
+      await enterTodoScreen(current);
+    } else {
+      clearCurrentUser();
+      showAuthScreen();
+    }
   })();
 </script>
 
