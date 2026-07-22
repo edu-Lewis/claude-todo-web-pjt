@@ -334,7 +334,14 @@
 
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+  // ----- Supabase 연동 -----
+  const SUPABASE_URL = 'https://hanubuzotkddvpzupsvk.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_YaVFnX6H6Lw-o5OcfYoVtw_ZENbz16T';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const TODO_TABLE = 'todo_tbl';
+
   // 탭 클릭 시 active 클래스 토글 + 카테고리 필터 적용 (FR-05)
   const tabButtons = document.querySelectorAll('.tab-btn');
 
@@ -350,8 +357,6 @@
   });
 
   // ----- 데이터 구조 -----
-  const STORAGE_KEY = 'todo_list_v1';
-
   const CATEGORY_KEY_TO_LABEL = {
     personal: '개인',
     study: '공부',
@@ -370,22 +375,27 @@
   let currentFilter = '전체';
   let editingId = null;
 
-  // ----- localStorage 연동 -----
-  function saveTodos() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  }
+  // ----- Supabase 연동 -----
+  async function loadTodos() {
+    const { data, error } = await supabaseClient
+      .from(TODO_TABLE)
+      .select('*')
+      .order('created_at', { ascending: true });
 
-  function loadTodos() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
+    if (error) {
+      console.error('할 일을 불러오지 못했습니다.', error);
       return [];
     }
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
+
+    return data.map(function (row) {
+      return {
+        id: row.id,
+        text: row.text,
+        category: row.category,
+        completed: row.completed,
+        createdAt: row.created_at
+      };
+    });
   }
 
   // ----- DOM 참조 -----
@@ -397,7 +407,7 @@
   const categoryProgressEl = document.getElementById('category-progress');
 
   // ----- 할 일 추가 (FR-01) -----
-  function addTodo() {
+  async function addTodo() {
     const text = todoInput.value.trim();
 
     if (text.length === 0) {
@@ -407,16 +417,28 @@
 
     todoInput.style.borderColor = '';
 
-    const newTodo = {
-      id: String(Date.now() + Math.random()),
-      text: text,
-      category: CATEGORY_KEY_TO_LABEL[categorySelect.value],
-      completed: false,
-      createdAt: new Date().toISOString()
-    };
+    const { data, error } = await supabaseClient
+      .from(TODO_TABLE)
+      .insert({
+        text: text,
+        category: CATEGORY_KEY_TO_LABEL[categorySelect.value],
+        completed: false
+      })
+      .select()
+      .single();
 
-    todos.push(newTodo);
-    saveTodos();
+    if (error) {
+      console.error('할 일을 추가하지 못했습니다.', error);
+      return;
+    }
+
+    todos.push({
+      id: data.id,
+      text: data.text,
+      category: data.category,
+      completed: data.completed,
+      createdAt: data.created_at
+    });
     renderTodos();
 
     todoInput.value = '';
@@ -580,7 +602,7 @@
   }
 
   // ----- 할 일 수정 저장 (FR-02) -----
-  function commitEdit(li) {
+  async function commitEdit(li) {
     const id = li.dataset.id;
     const input = li.querySelector('.edit-input');
     const select = li.querySelector('.edit-category-select');
@@ -596,9 +618,18 @@
     });
 
     if (todo) {
+      const { error } = await supabaseClient
+        .from(TODO_TABLE)
+        .update({ text: text, category: select.value })
+        .eq('id', id);
+
+      if (error) {
+        console.error('할 일을 수정하지 못했습니다.', error);
+        return;
+      }
+
       todo.text = text;
       todo.category = select.value;
-      saveTodos();
     }
 
     editingId = null;
@@ -606,7 +637,7 @@
   }
 
   // ----- 완료 체크 / 삭제 (이벤트 위임, FR-04 / FR-03) -----
-  todoListEl.addEventListener('click', function (e) {
+  todoListEl.addEventListener('click', async function (e) {
     const checkBtn = e.target.closest('.check-btn');
     if (checkBtn) {
       const li = checkBtn.closest('.todo-item');
@@ -615,8 +646,18 @@
         return t.id === id;
       });
       if (todo) {
-        todo.completed = !todo.completed;
-        saveTodos();
+        const nextCompleted = !todo.completed;
+        const { error } = await supabaseClient
+          .from(TODO_TABLE)
+          .update({ completed: nextCompleted })
+          .eq('id', id);
+
+        if (error) {
+          console.error('완료 상태를 변경하지 못했습니다.', error);
+          return;
+        }
+
+        todo.completed = nextCompleted;
         renderTodos();
       }
       return;
@@ -627,10 +668,19 @@
       const li = deleteBtn.closest('.todo-item');
       const id = li.dataset.id;
       if (window.confirm('정말 삭제할까요?')) {
+        const { error } = await supabaseClient
+          .from(TODO_TABLE)
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.error('할 일을 삭제하지 못했습니다.', error);
+          return;
+        }
+
         todos = todos.filter(function (t) {
           return t.id !== id;
         });
-        saveTodos();
         renderTodos();
       }
       return;
@@ -673,8 +723,10 @@
   });
 
   // ----- 페이지 로드 시 초기화 -----
-  todos = loadTodos();
-  renderTodos();
+  (async function init() {
+    todos = await loadTodos();
+    renderTodos();
+  })();
 </script>
 
 </body>
