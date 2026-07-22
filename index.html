@@ -26,6 +26,14 @@
     --border-color: #334155;
   }
 
+  :root[data-theme="orange"] {
+    --bg-color: #FFEDD5;
+    --card-color: #FFF7ED;
+    --text-color: #7C2D12;
+    --text-muted: #C2410C;
+    --border-color: #FDBA74;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -92,6 +100,10 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .auth-form[hidden] {
+    display: none;
   }
 
   .auth-form input {
@@ -191,15 +203,20 @@
   }
 
   #theme-toggle-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
     width: 40px;
     height: 40px;
     font-size: 18px;
     line-height: 1;
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: var(--bg-color);
+    background: var(--card-color);
     color: var(--text-color);
     cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
 
   #theme-toggle-btn:hover {
@@ -446,6 +463,9 @@
 </head>
 <body>
 
+  <!-- 로그인 여부와 상관없이 항상 노출되는 테마 전환 버튼 -->
+  <button id="theme-toggle-btn" type="button" aria-label="테마 전환">🌙</button>
+
   <!-- 0. 로그인 / 회원가입 화면 -->
   <div id="auth-screen" class="auth-container">
     <div class="auth-card">
@@ -483,7 +503,6 @@
         <div class="header-actions">
           <span id="current-user-label" class="current-user-label"></span>
           <button id="logout-btn" type="button">로그아웃</button>
-          <button id="theme-toggle-btn" type="button" aria-label="다크 모드 전환">🌙</button>
         </div>
       </div>
       <div id="progress-section">
@@ -533,18 +552,24 @@
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const TODO_TABLE = 'todo_tbl';
 
-  // ----- 다크 모드 -----
+  // ----- 테마 모드 (라이트 → 다크 → 오렌지 순환) -----
   const THEME_STORAGE_KEY = 'todo_theme_v1';
+  const THEME_ORDER = ['light', 'dark', 'orange'];
+  const THEME_NEXT_ICON = {
+    light: '🌙',
+    dark: '🟠',
+    orange: '☀️'
+  };
   const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    themeToggleBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    themeToggleBtn.textContent = THEME_NEXT_ICON[theme];
   }
 
   function getInitialTheme() {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    if (saved === 'dark' || saved === 'light') {
+    if (THEME_ORDER.includes(saved)) {
       return saved;
     }
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -553,7 +578,8 @@
   applyTheme(getInitialTheme());
 
   themeToggleBtn.addEventListener('click', function () {
-    const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const nextTheme = THEME_ORDER[(THEME_ORDER.indexOf(currentTheme) + 1) % THEME_ORDER.length];
     applyTheme(nextTheme);
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
   });
